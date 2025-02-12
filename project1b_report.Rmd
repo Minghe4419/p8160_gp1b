@@ -1,0 +1,19 @@
+---
+title: "Project1(B) Report"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Project 1: Multivariate Non-Normal Distributions and Correlated Data
+
+#### Distributions and correlation
+
+#### Data generation method
+
+#### Simulation study 1
+
+#### Simulation study 2
