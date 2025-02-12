@@ -3,6 +3,9 @@ P8160, Group Projects Project 1: Multivariate Non-Normal Distributions and Corre
 
 ## Group Member:
   Kaleb J. Frierson
+  
   Minghe Wang
+  
   Sunyeop Lee
+  
   Thomas Tang
