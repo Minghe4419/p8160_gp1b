@@ -90,9 +90,97 @@ pairs(
 # ----------------------------
 # 2) Fit a naive logistic regression
 # ----------------------------
+library(tidyverse)
+library(ggplot2)
+# generate data function
+generate_correlated_data <- function(n = 200, t = 4, beta0 = -1.0, beta1 = 0.3, 
+                                    sigma = 1.0, family = "binomial") {
 
-naive_glm <- glm(Y ~ time, data = dat, family = binomial)
-summary(naive_glm)
+  dat <- data.frame(
+    id   = rep(1:n, each = t),
+    time = rep(1:t, times = n)
+  )
+  
+  b_i <- rnorm(n, 0, sigma)
+  dat$b_i <- b_i[dat$id]
+  
+  eta <- beta0 + beta1 * dat$time + dat$b_i
+  
+
+  if (family == "binomial") {
+    dat$p_ij <- plogis(eta)
+    dat$Y    <- rbinom(n * t, size = 1, prob = dat$p_ij)
+  } 
+  # adding continue in the future
+  
+  return(dat)
+}
+```
+
+```{r}
+run_simulation_simple <- function(n_sim = 1000, n = 200, t = 4, 
+                                  beta0 = -1.0, beta1 = 0.3, sigma = 1.0) {
+  results <- data.frame(
+    beta_est = numeric(n_sim),
+    se       = numeric(n_sim),
+    p_value  = numeric(n_sim),
+    coverage = logical(n_sim)
+  )
+  
+  for (i in 1:n_sim) {
+    dat <- generate_correlated_data(n, t, beta0, beta1, sigma)
+    
+
+    fit_wrong <- glm(Y ~ time, data = dat, family = binomial)
+    summ <- summary(fit_wrong)
+    ci <- suppressMessages(confint.default(fit_wrong))
+    
+    results[i, ] <- c(
+      coef(fit_wrong)["time"],
+      summ$coefficients["time", "Std. Error"],
+      summ$coefficients["time", "Pr(>|z|)"],
+      (ci["time", 1] < beta1) & (ci["time", 2] > beta1)
+    )
+  }
+  
+  return(results)
+}
+
+```
+
+```{r}
+# （sigma=1.0）
+set.seed(123)
+sim_results <- run_simulation_simple(n_sim = 1000, sigma = 1.0)
+
+
+metrics <- data.frame(
+  bias         = mean(sim_results$beta_est - 0.3),
+  coverage     = mean(sim_results$coverage),
+  type_I_error = mean(sim_results$p_value < 0.05) # 当beta1=0时使用
+)
+print(metrics)
+
+
+ggplot(sim_results, aes(x = beta_est)) +
+  geom_histogram(bins = 30, fill = "skyblue", alpha = 0.7) +
+  geom_vline(xintercept = 0.3, color = "red", linetype = "dashed") +
+  labs(title = "Distribution of Beta1 Estimates", 
+       x = "Estimated Beta1", y = "Count")
+
+cat(sprintf("Coverage rate: %.3f (95%% CI: %.3f - %.3f)",
+            metrics$coverage,
+            metrics$coverage - 1.96*sqrt(metrics$coverage*(1-metrics$coverage)/1000),
+            metrics$coverage + 1.96*sqrt(metrics$coverage*(1-metrics$coverage)/1000)))
+```
+
+
+
+
+
+
+
+
 
 ```
 
