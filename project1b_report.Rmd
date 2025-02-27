@@ -10,9 +10,13 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Project 1: Multivariate Non-Normal Distributions and Correlated Data
 
-#### Distributions and correlation
+### Distributions and correlation
 
-#### Data generation method
+- We intend to generate longitudinal data.
+
+- Target correlation structure is AR(1) or exchangeable correlation.
+
+### Data generation method
 
 ```{r}
 set.seed(123)  # for reproducibility
@@ -80,7 +84,7 @@ pairs(
 ```
 
 
-#### Simulation study 1
+### Simulation study 1
 
 ```{r}
 # ----------------------------
@@ -92,7 +96,7 @@ summary(naive_glm)
 
 ```
 
-#### Simulation study 2
+### Simulation study 2
 
 ```{r}
 # install.packages("geepack")
