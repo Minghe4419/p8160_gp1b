@@ -14,6 +14,96 @@ knitr::opts_chunk$set(echo = TRUE)
 
 #### Data generation method
 
+```{r}
+set.seed(123)  # for reproducibility
+
+# Define sizes and parameters
+n     <- 200    # number of subjects
+t     <- 4      # number of repeated measurements per subject
+beta0 <- -1.0   # intercept on logit scale
+beta1 <-  0.3   # effect of time on logit scale
+sigma <-  1.0   # std dev of random intercept (b_i)
+
+# Create a data frame with one row per subject-time combination
+# We'll store each subject's random intercept in 'b_i'.
+dat <- data.frame(
+  id   = rep(1:n, each = t),
+  time = rep(1:t,     times = n)
+)
+
+# Simulate one random intercept per subject
+# Then replicate that intercept across all time points for that subject.
+b_i <- rnorm(n, mean = 0, sd = sigma)
+dat$b_i <- b_i[dat$id]   # match the random intercept to each row
+
+# Compute probability p_ij = logistic(beta0 + beta1*time_j + b_i)
+# Then draw Y_ij ~ Bernoulli(p_ij).
+dat$p_ij <- plogis(beta0 + beta1 * dat$time + dat$b_i)
+dat$Y    <- rbinom(n * t, size = 1, prob = dat$p_ij)
+
+head(dat)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+#    Simply show the binary response Y.
+ggplot(dat, aes(x = factor(Y))) +
+  geom_bar(width = 0.4, fill = "steelblue") +
+  xlab("Outcome Y (0 or 1)") +
+  ylab("Count") +
+  ggtitle("Distribution of Binary Outcome (Non-Normal)")
+
+# each row becomes a subject
+dat_wide <- dat %>%
+  select(id, time, Y) %>%
+  pivot_wider(names_from = time,
+              values_from = Y,
+              names_prefix = "Y_")
+
+# Now dat_wide has columns: id, Y_1, Y_2, ... up to Y_t
+pairwise_corr <- cor(dat_wide[, -1]) 
+pairwise_corr
+#> This matrix shows the sample correlation among times 1..t,
+
+# which clearly prove that outcomes are not independent
+pairs(
+  dat_wide[, -1] + matrix(runif(nrow(dat_wide)*(ncol(dat_wide)-1), 0, 0.1),
+                          nrow(dat_wide), ncol(dat_wide)-1),
+  main = "Pairs Plot (Jittered) of Y_t across times"
+)
+
+
+
+```
+
+
 #### Simulation study 1
 
+```{r}
+# ----------------------------
+# 2) Fit a naive logistic regression
+# ----------------------------
+
+naive_glm <- glm(Y ~ time, data = dat, family = binomial)
+summary(naive_glm)
+
+```
+
 #### Simulation study 2
+
+```{r}
+# install.packages("geepack")
+library(geepack)
+
+gee_fit <- geeglm(Y ~ time, 
+                  family = binomial, 
+                  id = id, 
+                  corstr = "exchangeable",
+                  data = dat)
+summary(gee_fit)
+
+```
+
