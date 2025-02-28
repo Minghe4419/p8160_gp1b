@@ -87,91 +87,171 @@ pairs(
 ### Simulation study 1
 
 ```{r}
-# ----------------------------
-# 2) Fit a naive logistic regression
-# ----------------------------
 library(tidyverse)
 library(ggplot2)
-# generate data function
-generate_correlated_data <- function(n = 200, t = 4, beta0 = -1.0, beta1 = 0.3, 
-                                    sigma = 1.0, family = "binomial") {
 
+
+set.seed(123)
+# --- 1. Data Generation Function ---
+generate_correlated_data <- function(n = 200, t = 4, beta0 = -1.0, beta1 = 0.3, 
+                                     sigma = 1.0, distribution = "binomial") {
   dat <- data.frame(
     id   = rep(1:n, each = t),
     time = rep(1:t, times = n)
   )
   
+  # Generate a random intercept for each subject (induces within-subject correlation)
   b_i <- rnorm(n, 0, sigma)
   dat$b_i <- b_i[dat$id]
   
+  # Linear predictor (eta)
   eta <- beta0 + beta1 * dat$time + dat$b_i
   
-
-  if (family == "binomial") {
+  if (distribution == "binomial") {
     dat$p_ij <- plogis(eta)
     dat$Y    <- rbinom(n * t, size = 1, prob = dat$p_ij)
-  } 
-  # adding continue in the future
+  } else if (distribution == "t-dist") {
+    # Continuous data: add t-distributed errors (df = 3) to produce heavy tails
+    df <- 3
+    errors <- rt(n * t, df = df)
+    dat$Y <- eta + errors
+  } else {
+    stop("Unknown distribution. Choose 'binomial' or 't-dist'.")
+  }
   
   return(dat)
 }
-```
 
-```{r}
-run_simulation_simple <- function(n_sim = 1000, n = 200, t = 4, 
-                                  beta0 = -1.0, beta1 = 0.3, sigma = 1.0) {
+# --- 2. Naive Model Fitting Function ---
+fit_naive_model <- function(dat, distribution) {
+  if (distribution == "binomial") {
+    # For binary data -> Logistic regression
+    fit <- glm(Y ~ time, data = dat, family = binomial)
+    summ <- summary(fit)
+    
+    beta1_hat <- summ$coefficients["time", "Estimate"]
+    se1       <- summ$coefficients["time", "Std. Error"]
+    
+    ci_lower <- beta1_hat - 1.96 * se1
+    ci_upper <- beta1_hat + 1.96 * se1
+    
+    p_val <- summ$coefficients["time", "Pr(>|z|)"]
+    
+  } else if (distribution == "t-dist") {
+    # For continuous data -> Linear regression
+    fit <- lm(Y ~ time, data = dat)
+    summ <- summary(fit)
+    
+    beta1_hat <- summ$coefficients["time", "Estimate"]
+    se1       <- summ$coefficients["time", "Std. Error"]
+    
+    ci_lower <- beta1_hat - 1.96 * se1
+    ci_upper <- beta1_hat + 1.96 * se1
+    
+    p_val <- summ$coefficients["time", "Pr(>|t|)"]
+    
+  } else {
+    stop("Unknown distribution. Choose 'binomial' or 't-dist'.")
+  }
+  
+  return(list(
+    beta1_hat = beta1_hat,
+    se1       = se1,
+    ci_lower  = ci_lower,
+    ci_upper  = ci_upper,
+    p_val     = p_val
+  ))
+}
+
+# --- 3. Single-Scenario Simulation Function ---
+run_simulation <- function(n_sim = 1000, n, t, beta0, beta1, sigma, distribution) {
   results <- data.frame(
-    beta_est = numeric(n_sim),
-    se       = numeric(n_sim),
-    p_value  = numeric(n_sim),
-    coverage = logical(n_sim)
+    beta1_est = numeric(n_sim),
+    se        = numeric(n_sim),
+    coverage  = logical(n_sim),
+    p_value   = numeric(n_sim)
   )
   
   for (i in 1:n_sim) {
-    dat <- generate_correlated_data(n, t, beta0, beta1, sigma)
+    # 1) Generate data
+    dat <- generate_correlated_data(n, t, beta0, beta1, sigma, distribution)
     
-
-    fit_wrong <- glm(Y ~ time, data = dat, family = binomial)
-    summ <- summary(fit_wrong)
-    ci <- suppressMessages(confint.default(fit_wrong))
+    # 2) Fit the naive model and extract metrics from the same model
+    fit <- fit_naive_model(dat, distribution)
     
-    results[i, ] <- c(
-      coef(fit_wrong)["time"],
-      summ$coefficients["time", "Std. Error"],
-      summ$coefficients["time", "Pr(>|z|)"],
-      (ci["time", 1] < beta1) & (ci["time", 2] > beta1)
-    )
+    # 3) Record results
+    results$beta1_est[i] <- fit$beta1_hat
+    results$se[i]        <- fit$se1
+    results$coverage[i]  <- (fit$ci_lower <= beta1 && fit$ci_upper >= beta1)
+    results$p_value[i]   <- fit$p_val
   }
   
   return(results)
 }
 
-```
-
-```{r}
-# （sigma=1.0）
-set.seed(123)
-sim_results <- run_simulation_simple(n_sim = 1000, sigma = 1.0)
-
-
-metrics <- data.frame(
-  bias         = mean(sim_results$beta_est - 0.3),
-  coverage     = mean(sim_results$coverage),
-  type_I_error = mean(sim_results$p_value < 0.05) # 当beta1=0时使用
+# --- 4. Construct Parameter Grid (including two beta1 values to assess both Type I error and Power) ---
+param_grid <- expand.grid(
+  n = c(50, 200, 500),                # Sample sizes
+  sigma = c(0.5, 1.0, 2.0),             # Random intercept standard deviation (controls correlation strength)
+  distribution = c("binomial", "t-dist"), # Binary (logistic) vs. heavy-tailed continuous data
+  beta1_val = c(0, 0.3)                # beta1 = 0 for Type I error, beta1 = 0.3 for Power
 )
-print(metrics)
+
+beta0_true <- -1
+t_time     <- 4
+n_sim      <- 500
+
+all_results <- list()
+
+# --- 5. Loop over Parameter Grid and Collect Results ---
+for (i in 1:nrow(param_grid)) {
+  params <- param_grid[i, ]
+  
+  cat("Running simulation for:",
+      "n =", params$n, 
+      "sigma =", params$sigma, 
+      "distribution =", params$distribution,
+      "beta1 =", params$beta1_val, "\n")
+  
+  sim_res <- run_simulation(
+    n_sim = n_sim, 
+    n     = params$n, 
+    t     = t_time, 
+    beta0 = beta0_true, 
+    beta1 = params$beta1_val, 
+    sigma = params$sigma, 
+    distribution = params$distribution
+  )
+  
+  # Calculate bias, coverage, and sig_rate
+  bias <- mean(sim_res$beta1_est) - params$beta1_val
+  coverage <- mean(sim_res$coverage)
+  sig_rate <- mean(sim_res$p_value < 0.05)
+  
+  # Distinguish between Type I error and Power based on beta1_val
+  if (params$beta1_val == 0) {
+    type1_error <- sig_rate
+    power <- NA
+  } else {
+    type1_error <- NA
+    power <- sig_rate
+  }
+  
+  # Combine the results
+  all_results[[i]] <- cbind(
+    params,
+    bias = bias,
+    coverage = coverage,
+    sig_rate = sig_rate,
+    type1_error = type1_error,
+    power = power
+  )
+}
+
+final_results <- bind_rows(all_results)
+print(final_results)
 
 
-ggplot(sim_results, aes(x = beta_est)) +
-  geom_histogram(bins = 30, fill = "skyblue", alpha = 0.7) +
-  geom_vline(xintercept = 0.3, color = "red", linetype = "dashed") +
-  labs(title = "Distribution of Beta1 Estimates", 
-       x = "Estimated Beta1", y = "Count")
-
-cat(sprintf("Coverage rate: %.3f (95%% CI: %.3f - %.3f)",
-            metrics$coverage,
-            metrics$coverage - 1.96*sqrt(metrics$coverage*(1-metrics$coverage)/1000),
-            metrics$coverage + 1.96*sqrt(metrics$coverage*(1-metrics$coverage)/1000)))
 ```
 
 
