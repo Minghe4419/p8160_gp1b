@@ -617,7 +617,7 @@ print(simulation_results_gee)
 ggplot(simulation_results_gee, aes(x = rho, y = avg_bias, color = as.factor(non_normality_level))) +
   geom_line() + geom_point() +
   facet_wrap(~ n_subjects, scales = "fixed") +
-  labs(title = "Bias in OLS Regression Across Correlation and Non-Normality Levels",
+  labs(title = "Bias in GEE Regression Across Correlation and Non-Normality Levels",
        x = "Correlation Level", y = "Bias",
        color = "Degree of Non-Normality") +
   theme_minimal()
@@ -626,7 +626,7 @@ ggplot(simulation_results_gee, aes(x = rho, y = avg_bias, color = as.factor(non_
 ggplot(simulation_results_gee, aes(x = rho, y = type1_error_rate, color = as.factor(non_normality_level))) +
   geom_line() + geom_point() +
   facet_wrap(~ n_subjects, scales = "fixed") +
-  labs(title = "Type I Error Rate in OLS Regression",
+  labs(title = "Type I Error Rate in GEE Regression",
        x = "Correlation Level", y = "Type I Error Rate",
        color = "Degree of Non-Normality") +
   theme_minimal()
