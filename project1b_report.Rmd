@@ -297,7 +297,7 @@ generate_longitudinal_poisson <- function(n_subjects, n_time, rho, lambda_base) 
   long_data$Z <- as.vector(subject_random_effects)
 
   # Step 5: Compute Poisson mean (lambda) with log-link
-  long_data$Lambda <- lambda_base * exp(long_data$Z)  # Log-normal transformation
+  long_data$Lambda <- lambda_base * exp(long_data$Z)  # Log-normal transformation  
 
   # Step 6: Generate Poisson counts
   long_data$Count <- rpois(n_total, lambda = long_data$Lambda)
