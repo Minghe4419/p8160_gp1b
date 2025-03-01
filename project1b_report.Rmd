@@ -262,13 +262,11 @@ print(final_results)
 
 
 
-```
 
 ### Simulation study 2
 
 ```{r}
-# install.packages("geepack")
-library(geepack)
+pacman::p_load(geepack)
 
 gee_fit <- geeglm(Y ~ time, 
                   family = binomial, 
