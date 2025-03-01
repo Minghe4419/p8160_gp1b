@@ -354,74 +354,326 @@ ggplot(binomial_results, aes(x = factor(sigma), y = sig_rate, fill = factor(n)))
 ### Simulation study 2
 
 ```{r}
-pacman::p_load(geepack,MASS,Matrix,ggplot2)
+pacman::p_load(geepack,MASS,Matrix,ggplot2, reshape2, ggcorrplot)
 
+#--------------------------------------------------------------------------#
+##### Generating the data #####
 # Function to generate Longitudinal Multivariate Poisson Data
-generate_longitudinal_poisson <- function(n_subjects, n_time, rho, lambda_base) {
-  # n_subjects: Number of subjects
-  # n_time: Number of time points per subject
-  # rho: Desired correlation between time points (within a subject)
-  # lambda_base: Baseline Poisson rate (adjust to control non-normality)
+generate_longitudinal_poisson <- function(n_subjects, n_time, rho, lambda_base, beta1) {
+  # Step 1: AR(1) correlation matrix
+  Sigma <- outer(1:n_time, 1:n_time, function(i, j) rho^abs(i - j))
+  Sigma <- as.matrix(nearPD(Sigma)$mat)  # Ensure positive definiteness
   
-  # Total number of observations
-  n_total <- n_subjects * n_time
-  
-  # Step 1: Create a correlation matrix for time points (AR-1 structure)
-  Sigma <- matrix(rho, nrow = n_time, ncol = n_time)
-  diag(Sigma) <- 1  # Set diagonal to 1 (self-correlation)
-
   # Step 2: Generate subject-specific latent normal effects
-  set.seed(123)
   subject_random_effects <- mvrnorm(n_subjects, mu = rep(0, n_time), Sigma = Sigma)
-
-  # Step 3: Expand into long format for longitudinal structure
-  long_data <- data.frame(
-    Subject = rep(1:n_subjects, each = n_time),
-    Time = rep(1:n_time, times = n_subjects)
+  
+  # Step 3: Assign binary predictor (50% probability)
+  subject_data <- data.frame(
+    Subject = 1:n_subjects,
+    X = rbinom(n_subjects, 1, 0.5)  # Binary predictor (0 or 1)
   )
   
-  # Step 4: Assign latent normal effect to each subject-time combination
+  # Step 4: Expand into long format for longitudinal structure
+  long_data <- merge(
+    subject_data,
+    data.frame(Time = rep(1:n_time, times = n_subjects), Subject = rep(1:n_subjects, each = n_time)),
+    by = "Subject"
+  )
+  
+  # Step 5: Assign latent normal effect to each subject-time combination
   long_data$Z <- as.vector(subject_random_effects)
-
-  # Step 5: Compute Poisson mean (lambda) with log-link
-  long_data$Lambda <- lambda_base * exp(long_data$Z)  # Log-normal transformation  
-
-  # Step 6: Generate Poisson counts
-  long_data$Count <- rpois(n_total, lambda = long_data$Lambda)
-
+  
+  # Step 6: Compute Poisson mean (lambda) using log-link with covariate
+  long_data$Lambda <- lambda_base * exp(beta1 * long_data$X + long_data$Z)
+  
+  # Step 7: Generate Poisson counts
+  long_data$Count <- rpois(n_subjects * n_time, lambda = long_data$Lambda)
+  
   return(long_data)
 }
+# Example: Generate longitudinal Poisson data for 1000 subjects over 5 time points
 
-# Example: Generate longitudinal Poisson data for 100 subjects over 5 time points
-set.seed(123)
-longitudinal_poisson_data <- generate_longitudinal_poisson(n_subjects = 100, n_time = 5, rho = 0.5, lambda_base = 5)
-
+longitudinal_poisson_data <- generate_longitudinal_poisson(n_subjects = 100000, 
+                                                           n_time = 5, 
+                                                           rho = 0.5, 
+                                                           lambda_base = 5, 
+                                                           beta1 = 0.3)
 # Print first few rows
 head(longitudinal_poisson_data)
 
-# Plot trajectory for a few subjects
-ggplot(longitudinal_poisson_data, aes(x = Time, y = Count, group = Subject)) +
+# Plot Poisson Counts Over Time
+ggplot(longitudinal_poisson_data, aes(x = Time, y = Count, group = Subject, color = as.factor(X))) +
   geom_line(alpha = 0.3) +
   geom_point(alpha = 0.3) +
-  labs(title = "Simulated Longitudinal Poisson Data", x = "Time", y = "Count") +
+  labs(title = "Simulated Longitudinal Poisson Data with Predictor", x = "Time", y = "Count", color = "X (Predictor)") +
+  theme_minimal()
+
+# Compare Count Distributions for X=0 vs X=1
+ggplot(longitudinal_poisson_data, aes(x = Count, fill = as.factor(X))) +
+  geom_histogram(binwidth = 1, position = "dodge", alpha = 0.7) +
+  scale_fill_manual(values = c("blue", "red"), labels = c("X=0", "X=1")) +
+  labs(title = "Distribution of Poisson Counts by Predictor X",
+       x = "Poisson Count", fill = "Predictor X") +
+  theme_minimal()
+
+# Reshape data for correlation check
+cor_data <- dcast(longitudinal_poisson_data, Subject ~ Time, value.var = "Count")
+
+# Compute correlation matrix
+cor_matrix <- cor(cor_data[, -1], use = "pairwise.complete.obs")
+
+# Plot correlation heatmap  
+ggcorrplot(cor_matrix, method = "circle", type = "lower", lab = TRUE) +
+  labs(title = "Correlation Between Time Points in Longitudinal Poisson Data")
+
+
+#--------------------------------------------------------------------------#
+##### running a linear regression #####
+
+# Define simulation parameters
+sample_sizes <- c(50, 100, 500, 1000)  # Varying sample sizes
+rho_levels <- c(0, 0.3, 0.6, 0.9)  # Varying correlation levels
+non_normality_levels <- c(0.1, 0.5, 1, 2, 10, 50)  # Skewness levels
+n_time <- 4  # Fixed number of time points
+lambda_base <- 5  # Base Poisson mean
+beta1_null <- 0  # Set beta1 = 0 to compute Type I error rate
+n_sim <- 100  # More replications for stable estimates
+
+# Expand grid to create all parameter combinations
+test_conditions <- expand.grid(n_subjects = sample_sizes, 
+                               rho = rho_levels, 
+                               non_normality_level = non_normality_levels)
+
+
+
+# Function to fit an incorrect OLS model while varying non-normality & tracking Type I Error
+simulate_ols_analysis <- function(n_subjects, n_time, rho, lambda_base, beta1, non_normality_level, n_sim) {
+  type1_errors <- numeric(n_sim)
+  bias_values <- numeric(n_sim)
+  coverage_values <- numeric(n_sim)  # Stores whether CI contains true beta1
+  
+  for (i in 1:n_sim) {
+    # Adjust lambda for non-normality level
+    adjusted_lambda <- lambda_base / non_normality_level
+    
+    # Generate Poisson data
+    sim_data <- generate_longitudinal_poisson(n_subjects, n_time, rho, adjusted_lambda, beta1)
+    
+    # Fit OLS model **(Task 3 explicitly requires incorrect OLS)**
+    lm_model <- lm(Count ~ X, data = sim_data)  
+    
+    # Extract p-value for predictor X
+    p_value <- summary(lm_model)$coefficients["X", "Pr(>|t|)"]
+    type1_errors[i] <- ifelse(p_value < 0.05, 1, 0)
+    
+    # Compute bias
+    beta1_hat <- coef(lm_model)["X"]
+    bias_values[i] <- beta1_hat - beta1
+    
+    # Compute 95% CI for beta1
+    beta1_se <- summary(lm_model)$coefficients["X", "Std. Error"]
+    beta1_CI <- beta1_hat + c(-1.96, 1.96) * beta1_se
+    
+    # Check if CI contains true beta1
+    coverage_values[i] <- (beta1_CI[1] <= beta1 & beta1_CI[2] >= beta1)
+  }
+  
+  # Compute average Type I Error, Bias, and Coverage
+  type1_error_rate <- mean(type1_errors)
+  avg_bias <- mean(bias_values)
+  coverage_prob <- mean(coverage_values)
+  
+  # Print diagnostics
+  cat("n_subjects:", n_subjects, "rho:", rho, "non_normality_level:", non_normality_level, 
+      "Lambda:", adjusted_lambda, "Type I Error Rate:", type1_error_rate, "Coverage:", coverage_prob, "\n")
+  
+  return(data.frame(
+    n_subjects = n_subjects,
+    rho = rho,
+    non_normality_level = non_normality_level,
+    adjusted_lambda = adjusted_lambda,
+    avg_bias = avg_bias,
+    type1_error_rate = type1_error_rate,
+    coverage_prob = coverage_prob
+  ))
+}
+
+
+# Run simulations
+set.seed(123)
+simulation_results_ols <- do.call(rbind, apply(test_conditions, 1, function(row) {
+  simulate_ols_analysis(n_subjects = row["n_subjects"], 
+                        n_time = n_time, 
+                        rho = row["rho"], 
+                        lambda_base = lambda_base, 
+                        beta1 = beta1_null,  
+                        non_normality_level = row["non_normality_level"],
+                        n_sim = n_sim)  
+}))
+
+# Print results
+print(simulation_results_ols)
+
+# Plot Bias vs. Correlation
+ggplot(simulation_results_ols, aes(x = rho, y = avg_bias, color = as.factor(non_normality_level))) +
+  geom_line() + geom_point() +
+  facet_wrap(~ n_subjects, scales = "fixed") +
+  labs(title = "Bias in OLS Regression Across Correlation and Non-Normality Levels",
+       x = "Correlation Level", y = "Bias",
+       color = "Degree of Non-Normality") +
+  theme_minimal()
+
+# Plot Type I Error Rate vs. Correlation
+ggplot(simulation_results_ols, aes(x = rho, y = type1_error_rate, color = as.factor(non_normality_level))) +
+  geom_line() + geom_point() +
+  facet_wrap(~ n_subjects, scales = "fixed") +
+  labs(title = "Type I Error Rate in OLS Regression",
+       x = "Correlation Level", y = "Type I Error Rate",
+       color = "Degree of Non-Normality") +
+  theme_minimal()
+
+# Plot Coverage Probability vs. Correlation
+ggplot(simulation_results_ols, aes(x = rho, y = coverage_prob, color = as.factor(non_normality_level))) +
+  geom_line() + geom_point() +
+  facet_wrap(~ n_subjects, scales = "fixed") +
+  labs(title = "Coverage Probability of Confidence Intervals",
+       x = "Correlation Level", y = "Coverage Probability",
+       color = "Degree of Non-Normality") +
   theme_minimal()
 
 
+#--------------------------------------------------------------------------#
+##### running a GEE poisson regression #####
+
+simulate_gee_analysis <- function(n_subjects, n_time, rho, lambda_base, beta1, non_normality_level, n_sim) {
+  type1_errors <- numeric(n_sim)
+  bias_values <- numeric(n_sim)
+  coverage_values <- numeric(n_sim)
+  
+  for (i in 1:n_sim) {
+    # Adjust lambda for non-normality level
+    adjusted_lambda <- lambda_base / non_normality_level
+    
+    # Generate Poisson-distributed correlated data
+    sim_data <- generate_longitudinal_poisson(n_subjects, n_time, rho, adjusted_lambda, beta1)
+    
+    # Fit a **correct** GEE model
+    gee_model <- geeglm(Count ~ X, id = Subject, data = sim_data, family = poisson, corstr = "ar1")
+    
+    # Extract p-value for predictor X
+    p_value <- summary(gee_model)$coefficients["X", "Pr(>|W|)"]
+    type1_errors[i] <- ifelse(p_value < 0.05, 1, 0)
+    
+    # Compute bias
+    beta1_hat <- coef(gee_model)["X"]
+    bias_values[i] <- beta1_hat - beta1
+    
+    # Compute 95% CI
+    beta1_se <- summary(gee_model)$coefficients["X", "Std.err"]
+    beta1_CI <- beta1_hat + c(-1.96, 1.96) * beta1_se
+    
+    # Check if CI contains true beta1
+    coverage_values[i] <- (beta1_CI[1] <= beta1 & beta1_CI[2] >= beta1)
+  }
+  
+  # Compute average Type I Error, Bias, and Coverage
+  type1_error_rate <- mean(type1_errors)
+  avg_bias <- mean(bias_values)
+  coverage_prob <- mean(coverage_values)
+  
+  # Print diagnostics
+  cat("n_subjects:", n_subjects, "rho:", rho, "non_normality_level:", non_normality_level, 
+      "Lambda:", adjusted_lambda, "Type I Error Rate (GEE):", type1_error_rate, "Coverage (GEE):", coverage_prob, "\n")
+  
+  return(data.frame(
+    n_subjects = n_subjects,
+    rho = rho,
+    non_normality_level = non_normality_level,
+    adjusted_lambda = adjusted_lambda,
+    avg_bias = avg_bias,
+    type1_error_rate = type1_error_rate,
+    coverage_prob = coverage_prob
+  ))
+}
+
+# Run simulations
+set.seed(123)
+simulation_results_gee <- do.call(rbind, apply(test_conditions, 1, function(row) {
+  simulate_gee_analysis(n_subjects = row["n_subjects"], 
+                        n_time = n_time, 
+                        rho = row["rho"], 
+                        lambda_base = lambda_base, 
+                        beta1 = beta1_null,  
+                        non_normality_level = row["non_normality_level"],
+                        n_sim = n_sim)  
+}))
 
 
+# Print results
+print(simulation_results_gee)
 
 
+# Plot Bias vs. Correlation
+ggplot(simulation_results_gee, aes(x = rho, y = avg_bias, color = as.factor(non_normality_level))) +
+  geom_line() + geom_point() +
+  facet_wrap(~ n_subjects, scales = "fixed") +
+  labs(title = "Bias in OLS Regression Across Correlation and Non-Normality Levels",
+       x = "Correlation Level", y = "Bias",
+       color = "Degree of Non-Normality") +
+  theme_minimal()
+
+# Plot Type I Error Rate vs. Correlation
+ggplot(simulation_results_gee, aes(x = rho, y = type1_error_rate, color = as.factor(non_normality_level))) +
+  geom_line() + geom_point() +
+  facet_wrap(~ n_subjects, scales = "fixed") +
+  labs(title = "Type I Error Rate in OLS Regression",
+       x = "Correlation Level", y = "Type I Error Rate",
+       color = "Degree of Non-Normality") +
+  theme_minimal()
+
+# Plot Coverage Probability vs. Correlation
+ggplot(simulation_results_gee, aes(x = rho, y = coverage_prob, color = as.factor(non_normality_level))) +
+  geom_line() + geom_point() +
+  facet_wrap(~ n_subjects, scales = "fixed") +
+  labs(title = "Coverage Probability of Confidence Intervals",
+       x = "Correlation Level", y = "Coverage Probability",
+       color = "Degree of Non-Normality") +
+  theme_minimal()
+
+#--------------------------------------------------------------------------#
+##### Model comparison #####
+
+simulation_results_gee$model <- "GEE"
+simulation_results_ols$model <- "OLS"
+
+# Combine the results
+comparison_results <- rbind(simulation_results_gee, simulation_results_ols)
+
+ggplot(comparison_results, aes(x = rho, y = avg_bias, color = model, linetype = model)) +
+  geom_line(size = 1) + geom_point(size = 2) +
+  facet_wrap(~ n_subjects, scales = "fixed") +  
+  labs(title = "Bias in OLS vs GEE Regression",
+       x = "Correlation Level", y = "Bias",
+       color = "Model Type", linetype = "Model Type") +
+  theme_minimal()
 
 
+ggplot(comparison_results, aes(x = rho, y = type1_error_rate, color = model, linetype = model)) +
+  geom_line(size = 1) + geom_point(size = 2) +
+  facet_wrap(~ n_subjects, scales = "fixed") +  
+  labs(title = "Type I Error Rate: OLS vs GEE",
+       x = "Correlation Level", y = "Type I Error Rate",
+       color = "Model Type", linetype = "Model Type") +
+  theme_minimal()
 
 
-
-gee_fit <- geeglm(Y ~ time, 
-                  family = binomial, 
-                  id = id, 
-                  corstr = "exchangeable",
-                  data = dat)
-summary(gee_fit)
+ggplot(comparison_results, aes(x = rho, y = coverage_prob, color = model, linetype = model)) +
+  geom_line(size = 1) + geom_point(size = 2) +
+  facet_wrap(~ n_subjects, scales = "fixed") +  
+  labs(title = "Coverage Probability of Confidence Intervals: OLS vs GEE",
+       x = "Correlation Level", y = "Coverage Probability",
+       color = "Model Type", linetype = "Model Type") +
+  theme_minimal()
 
 ```
 
