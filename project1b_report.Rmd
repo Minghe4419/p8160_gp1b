@@ -89,12 +89,12 @@ pairs(
 ```{r}
 library(tidyverse)
 library(ggplot2)
+library(sandwich)
+library(lmtest)
 
-
-set.seed(123)
 # --- 1. Data Generation Function ---
 generate_correlated_data <- function(n = 200, t = 4, beta0 = -1.0, beta1 = 0.3, 
-                                     sigma = 1.0, distribution = "binomial") {
+                                     sigma = 1.0, distribution = "binomial", df = 3) {
   dat <- data.frame(
     id   = rep(1:n, each = t),
     time = rep(1:t, times = n)
@@ -111,8 +111,7 @@ generate_correlated_data <- function(n = 200, t = 4, beta0 = -1.0, beta1 = 0.3,
     dat$p_ij <- plogis(eta)
     dat$Y    <- rbinom(n * t, size = 1, prob = dat$p_ij)
   } else if (distribution == "t-dist") {
-    # Continuous data: add t-distributed errors (df = 3) to produce heavy tails
-    df <- 3
+    # Continuous data: add t-distributed errors with specified degrees of freedom
     errors <- rt(n * t, df = df)
     dat$Y <- eta + errors
   } else {
@@ -164,7 +163,7 @@ fit_naive_model <- function(dat, distribution) {
 }
 
 # --- 3. Single-Scenario Simulation Function ---
-run_simulation <- function(n_sim = 1000, n, t, beta0, beta1, sigma, distribution) {
+run_simulation <- function(n_sim = 1000, n, t, beta0, beta1, sigma, distribution, df = 3) {
   results <- data.frame(
     beta1_est = numeric(n_sim),
     se        = numeric(n_sim),
@@ -173,10 +172,10 @@ run_simulation <- function(n_sim = 1000, n, t, beta0, beta1, sigma, distribution
   )
   
   for (i in 1:n_sim) {
-    # 1) Generate data
-    dat <- generate_correlated_data(n, t, beta0, beta1, sigma, distribution)
+    # 1) Generate data, passing df (used only for t-dist)
+    dat <- generate_correlated_data(n, t, beta0, beta1, sigma, distribution, df)
     
-    # 2) Fit the naive model and extract metrics from the same model
+    # 2) Fit the naive model and extract metrics
     fit <- fit_naive_model(dat, distribution)
     
     # 3) Record results
@@ -189,12 +188,13 @@ run_simulation <- function(n_sim = 1000, n, t, beta0, beta1, sigma, distribution
   return(results)
 }
 
-# --- 4. Construct Parameter Grid (including two beta1 values to assess both Type I error and Power) ---
+# --- 4. Construct Parameter Grid (including beta1 = 0 and beta1 = 0.3) ---
 param_grid <- expand.grid(
   n = c(50, 200, 500),                # Sample sizes
-  sigma = c(0.5, 1.0, 2.0),             # Random intercept standard deviation (controls correlation strength)
+  sigma = c(0.5, 1.0, 2.0),             # Random intercept SD (controls correlation strength)
   distribution = c("binomial", "t-dist"), # Binary (logistic) vs. heavy-tailed continuous data
-  beta1_val = c(0, 0.3)                # beta1 = 0 for Type I error, beta1 = 0.3 for Power
+  beta1_val = c(0, 0.3),                # beta1 = 0 for Type I error, beta1 = 0.3 for Power
+  df = c(3, 5, 10)                     # Degrees of freedom for t-dist (ignored for binomial)
 )
 
 beta0_true <- -1
@@ -211,7 +211,8 @@ for (i in 1:nrow(param_grid)) {
       "n =", params$n, 
       "sigma =", params$sigma, 
       "distribution =", params$distribution,
-      "beta1 =", params$beta1_val, "\n")
+      "beta1 =", params$beta1_val,
+      "df =", params$df, "\n")
   
   sim_res <- run_simulation(
     n_sim = n_sim, 
@@ -220,36 +221,43 @@ for (i in 1:nrow(param_grid)) {
     beta0 = beta0_true, 
     beta1 = params$beta1_val, 
     sigma = params$sigma, 
-    distribution = params$distribution
+    distribution = params$distribution,
+    df = params$df
   )
   
-  # Calculate bias, coverage, and sig_rate
+  # Calculate bias, coverage, and significance rate (sig_rate)
   bias <- mean(sim_res$beta1_est) - params$beta1_val
   coverage <- mean(sim_res$coverage)
   sig_rate <- mean(sim_res$p_value < 0.05)
   
-  # Distinguish between Type I error and Power based on beta1_val
-  if (params$beta1_val == 0) {
-    type1_error <- sig_rate
-    power <- NA
-  } else {
-    type1_error <- NA
-    power <- sig_rate
-  }
-  
-  # Combine the results
   all_results[[i]] <- cbind(
     params,
     bias = bias,
     coverage = coverage,
-    sig_rate = sig_rate,
-    type1_error = type1_error,
-    power = power
+    sig_rate = sig_rate
   )
 }
 
 final_results <- bind_rows(all_results)
-print(final_results)
+
+# --- 6. Separate Result Tables for Type I Error and Power ---
+type1_error_results <- final_results %>% 
+  filter(beta1_val == 0) %>% 
+  select(n, sigma, distribution, df, bias, coverage, sig_rate) %>% 
+  rename(TypeI_error = sig_rate)
+
+power_results <- final_results %>% 
+  filter(beta1_val != 0) %>% 
+  select(n, sigma, distribution, df, bias, coverage, sig_rate) %>% 
+  rename(Power = sig_rate)
+
+cat("\nResults for Type I Error (beta1 = 0):\n")
+print(type1_error_results)
+
+cat("\nResults for Power (beta1 = 0.3):\n")
+print(power_results)
+
+
 
 
 
