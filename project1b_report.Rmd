@@ -89,9 +89,6 @@ pairs(
 ```{r}
 library(tidyverse)
 library(ggplot2)
-library(sandwich)
-library(lmtest)
-
 # --- 1. Data Generation Function ---
 generate_correlated_data <- function(n = 200, t = 4, beta0 = -1.0, beta1 = 0.3, 
                                      sigma = 1.0, distribution = "binomial", df = 3) {
@@ -262,16 +259,98 @@ print(power_results)
 
 
 ```
+```{r}
+# Filter results for t-dist only (df is only meaningful for t-dist)
+t_dist_results <- final_results %>% filter(distribution == "t-dist")
+
+# Separate the results for Type I error (beta1_val = 0) and for Power (beta1_val = 0.3)
+t_dist_null <- t_dist_results %>% filter(beta1_val == 0)
+t_dist_power <- t_dist_results %>% filter(beta1_val == 0.3)
+
+# ----- Visualization for t-dist (Type I Error) -----
+# Plot Bias vs. df for Type I Error (β₁ = 0) across different sigma and n
+ggplot(t_dist_null, aes(x = factor(df), y = bias, color = factor(sigma))) +
+  geom_point(size = 3) +
+  geom_line(aes(group = sigma)) +
+  facet_wrap(~ n, scales = "free_y") +
+  labs(title = "Bias (Type I Error) for t-dist Data (β₁ = 0)",
+       x = "Degrees of Freedom (df)",
+       y = "Bias",
+       color = "Sigma")
+
+# Plot Coverage vs. df for Type I Error
+ggplot(t_dist_null, aes(x = factor(df), y = coverage, color = factor(sigma))) +
+  geom_point(size = 3) +
+  geom_line(aes(group = sigma)) +
+  facet_wrap(~ n) +
+  labs(title = "Coverage (Type I Error) for t-dist Data (β₁ = 0)",
+       x = "Degrees of Freedom (df)",
+       y = "Coverage",
+       color = "Sigma")
+
+# Plot sig_rate vs. df for Type I Error (this is the Type I error rate)
+ggplot(t_dist_null, aes(x = factor(df), y = sig_rate, color = factor(sigma))) +
+  geom_point(size = 3) +
+  geom_line(aes(group = sigma)) +
+  facet_wrap(~ n) +
+  labs(title = "Type I Error Rate for t-dist Data (β₁ = 0)",
+       x = "Degrees of Freedom (df)",
+       y = "Type I Error Rate",
+       color = "Sigma")
+
+# ----- Visualization for t-dist (Power) -----
+# Plot Bias vs. df for Power (β₁ = 0.3)
+ggplot(t_dist_power, aes(x = factor(df), y = bias, color = factor(sigma))) +
+  geom_point(size = 3) +
+  geom_line(aes(group = sigma)) +
+  facet_wrap(~ n, scales = "free_y") +
+  labs(title = "Bias (Power) for t-dist Data (β₁ = 0.3)",
+       x = "Degrees of Freedom (df)",
+       y = "Bias",
+       color = "Sigma")
+
+# Plot Coverage vs. df for Power
+ggplot(t_dist_power, aes(x = factor(df), y = coverage, color = factor(sigma))) +
+  geom_point(size = 3) +
+  geom_line(aes(group = sigma)) +
+  facet_wrap(~ n) +
+  labs(title = "Coverage (Power) for t-dist Data (β₁ = 0.3)",
+       x = "Degrees of Freedom (df)",
+       y = "Coverage",
+       color = "Sigma")
+
+# Plot sig_rate vs. df for Power (this is the Power)
+ggplot(t_dist_power, aes(x = factor(df), y = sig_rate, color = factor(sigma))) +
+  geom_point(size = 3) +
+  geom_line(aes(group = sigma)) +
+  facet_wrap(~ n) +
+  labs(title = "Power for t-dist Data (β₁ = 0.3)",
+       x = "Degrees of Freedom (df)",
+       y = "Power (sig_rate)",
+       color = "Sigma")
 
 
 
 
 
+```
+```{r}
+# For binomial: df is not used, so we can plot results by n and sigma.
+# Visualize bias for binomial data
+ggplot(binomial_results, aes(x = factor(sigma), y = bias, fill = factor(n))) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  labs(title = "Bias for Binomial Distribution", x = "Sigma", y = "Bias", fill = "Sample Size (n)")
 
+# Visualize coverage for binomial data
+ggplot(binomial_results, aes(x = factor(sigma), y = coverage, fill = factor(n))) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  labs(title = "Coverage for Binomial Distribution", x = "Sigma", y = "Coverage", fill = "Sample Size (n)")
 
-
-
-
+# Visualize sig_rate (Type I error or Power) for binomial data
+ggplot(binomial_results, aes(x = factor(sigma), y = sig_rate, fill = factor(n))) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  labs(title = "Sig_rate for Binomial Distribution", x = "Sigma", y = "Sig_rate", fill = "Sample Size (n)")
+```
 ### Simulation study 2
 
 ```{r}
