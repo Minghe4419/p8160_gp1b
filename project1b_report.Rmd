@@ -266,7 +266,67 @@ print(final_results)
 ### Simulation study 2
 
 ```{r}
-pacman::p_load(geepack)
+pacman::p_load(geepack,MASS,Matrix,ggplot2)
+
+# Function to generate Longitudinal Multivariate Poisson Data
+generate_longitudinal_poisson <- function(n_subjects, n_time, rho, lambda_base) {
+  # n_subjects: Number of subjects
+  # n_time: Number of time points per subject
+  # rho: Desired correlation between time points (within a subject)
+  # lambda_base: Baseline Poisson rate (adjust to control non-normality)
+  
+  # Total number of observations
+  n_total <- n_subjects * n_time
+  
+  # Step 1: Create a correlation matrix for time points (AR-1 structure)
+  Sigma <- matrix(rho, nrow = n_time, ncol = n_time)
+  diag(Sigma) <- 1  # Set diagonal to 1 (self-correlation)
+
+  # Step 2: Generate subject-specific latent normal effects
+  set.seed(123)
+  subject_random_effects <- mvrnorm(n_subjects, mu = rep(0, n_time), Sigma = Sigma)
+
+  # Step 3: Expand into long format for longitudinal structure
+  long_data <- data.frame(
+    Subject = rep(1:n_subjects, each = n_time),
+    Time = rep(1:n_time, times = n_subjects)
+  )
+  
+  # Step 4: Assign latent normal effect to each subject-time combination
+  long_data$Z <- as.vector(subject_random_effects)
+
+  # Step 5: Compute Poisson mean (lambda) with log-link
+  long_data$Lambda <- lambda_base * exp(long_data$Z)  # Log-normal transformation
+
+  # Step 6: Generate Poisson counts
+  long_data$Count <- rpois(n_total, lambda = long_data$Lambda)
+
+  return(long_data)
+}
+
+# Example: Generate longitudinal Poisson data for 100 subjects over 5 time points
+set.seed(123)
+longitudinal_poisson_data <- generate_longitudinal_poisson(n_subjects = 100, n_time = 5, rho = 0.5, lambda_base = 5)
+
+# Print first few rows
+head(longitudinal_poisson_data)
+
+# Plot trajectory for a few subjects
+ggplot(longitudinal_poisson_data, aes(x = Time, y = Count, group = Subject)) +
+  geom_line(alpha = 0.3) +
+  geom_point(alpha = 0.3) +
+  labs(title = "Simulated Longitudinal Poisson Data", x = "Time", y = "Count") +
+  theme_minimal()
+
+
+
+
+
+
+
+
+
+
 
 gee_fit <- geeglm(Y ~ time, 
                   family = binomial, 
