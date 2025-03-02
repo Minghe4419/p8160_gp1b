@@ -529,7 +529,7 @@ ggplot(simulation_results_ols, aes(x = lambda_base, y = avg_bias, color = as.fac
   theme_minimal()
 
 # Plot Type I Error Rate vs. Correlation
-ggplot(filter(simulation_results_ols, lambda_base == max(lambda_base)), aes(x = rho, y = type1_error_rate)) +
+ggplot(filter(simulation_results_gee, lambda_base == max(lambda_base)), aes(x = rho, y = type1_error_rate)) +
   geom_line() + geom_point() +
   facet_wrap(~ n_subjects, scales = "fixed") +
   labs(title = "Type I Error Rate in OLS Regression",
@@ -537,7 +537,7 @@ ggplot(filter(simulation_results_ols, lambda_base == max(lambda_base)), aes(x = 
        color = "Lambda") +
   theme_minimal()
 
-ggplot(filter(simulation_results_ols, rho==min(rho)), aes(x = lambda_base, y = type1_error_rate)) +
+ggplot(filter(simulation_results_gee, rho==min(rho)), aes(x = lambda_base, y = type1_error_rate)) +
   geom_line() + geom_point() +
   facet_wrap(~ n_subjects, scales = "fixed") +
   labs(title = "Type I Error Rate in OLS Regression",
@@ -546,14 +546,14 @@ ggplot(filter(simulation_results_ols, rho==min(rho)), aes(x = lambda_base, y = t
   theme_minimal()
 
 # Plot Coverage Probability vs. Correlation
-ggplot(filter(simulation_results_ols, lambda_base==max(lambda_base)), aes(x = rho, y = coverage_prob)) +
+ggplot(filter(simulation_results_gee, lambda_base==max(lambda_base)), aes(x = rho, y = coverage_prob)) +
   geom_line() + geom_point() +
   facet_wrap(~ n_subjects, scales = "fixed") +
   labs(title = "Coverage Probability of Confidence Intervals",
        x = "Correlation Level", y = "Coverage Probability") +
   theme_minimal()
 
-ggplot(filter(simulation_results_ols, rho==min(rho)), aes(x = lambda_base, y = coverage_prob)) +
+ggplot(filter(simulation_results_gee, rho==min(rho)), aes(x = lambda_base, y = coverage_prob)) +
   geom_line() + geom_point() +
   facet_wrap(~ n_subjects, scales = "fixed") +
   labs(title = "Coverage Probability of Confidence Intervals",
