@@ -669,7 +669,7 @@ simulation_results_ols$model <- "OLS"
 # Combine the results
 comparison_results <- rbind(simulation_results_gee, simulation_results_ols)
 
-ggplot(comparison_results, aes(x = rho, y = avg_bias, color = model, linetype = model)) +
+ggplot(filter(comparison_results, lambda_base==max(lambda_base)), aes(x = rho, y = avg_bias, color = model, linetype = model)) +
   geom_line(size = 1) + geom_point(size = 2) +
   facet_wrap(~ n_subjects, scales = "fixed") +  
   labs(title = "Bias in OLS vs GEE Regression",
@@ -678,7 +678,7 @@ ggplot(comparison_results, aes(x = rho, y = avg_bias, color = model, linetype = 
   theme_minimal()
 
 
-ggplot(comparison_results, aes(x = rho, y = type1_error_rate, color = model, linetype = model)) +
+ggplot(filter(comparison_results, lambda_base==max(lambda_base)), aes(x = rho, y = type1_error_rate, color = model, linetype = model)) +
   geom_line(size = 1) + geom_point(size = 2) +
   facet_wrap(~ n_subjects, scales = "fixed") +  
   labs(title = "Type I Error Rate: OLS vs GEE",
@@ -687,13 +687,14 @@ ggplot(comparison_results, aes(x = rho, y = type1_error_rate, color = model, lin
   theme_minimal()
 
 
-ggplot(comparison_results, aes(x = rho, y = coverage_prob, color = model, linetype = model)) +
+ggplot(filter(comparison_results, lambda_base==max(lambda_base)), aes(x = rho, y = coverage_prob, color = model, linetype = model)) +
   geom_line(size = 1) + geom_point(size = 2) +
   facet_wrap(~ n_subjects, scales = "fixed") +  
   labs(title = "Coverage Probability of Confidence Intervals: OLS vs GEE",
        x = "Correlation Level", y = "Coverage Probability",
        color = "Model Type", linetype = "Model Type") +
   theme_minimal()
+
 
 ```
 
