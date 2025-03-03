@@ -391,6 +391,9 @@ generate_longitudinal_poisson <- function(n_subjects, n_time, rho, lambda_base, 
   
   return(long_data)
 }
+```
+
+```{r}
 # Example: Generate longitudinal Poisson data for 1000 subjects over 5 time points
 
 longitudinal_poisson_data <- generate_longitudinal_poisson(n_subjects = 100000, 
@@ -425,8 +428,9 @@ cor_matrix <- cor(cor_data[, -1], use = "pairwise.complete.obs")
 # Plot correlation heatmap  
 ggcorrplot(cor_matrix, method = "circle", type = "lower", lab = TRUE) +
   labs(title = "Correlation Between Time Points in Longitudinal Poisson Data")
+```
 
-
+```{r}
 #--------------------------------------------------------------------------#
 ##### running a linear regression #####
 
@@ -507,10 +511,9 @@ simulation_results_ols <- do.call(rbind, apply(test_conditions, 1, function(row)
                         beta1 = beta1_null,
                         n_sim = n_sim)  
 }))
+```
 
-# Print results
-print(simulation_results_ols)
-
+```{r}
 # Plot Bias vs. Correlation
 ggplot(simulation_results_ols, aes(x = rho, y = avg_bias, color = as.factor(lambda_base))) +
   geom_line() + geom_point() +
@@ -528,40 +531,72 @@ ggplot(simulation_results_ols, aes(x = lambda_base, y = avg_bias, color = as.fac
        color = "Correlation Level") +
   theme_minimal()
 
-# Plot Type I Error Rate vs. Correlation
-ggplot(filter(simulation_results_gee, lambda_base == max(lambda_base)), aes(x = rho, y = type1_error_rate)) +
-  geom_line() + geom_point() +
+library(dplyr)
+library(ggplot2)
+
+# 1) Identify the numeric max(lambda_base) and min(rho)
+max_lambda <- max(simulation_results_ols$lambda_base)
+min_rho    <- min(simulation_results_ols$rho)
+
+# 2) Create subsets using a tolerance (in case of floating-point mismatch)
+df_max_lambda <- filter(simulation_results_ols, abs(lambda_base - max_lambda) < 1e-8)
+df_min_rho    <- filter(simulation_results_ols, abs(rho - min_rho) < 1e-8)
+
+# 3) Now plot from these subsets:
+
+#--- Plot 1: Type I Error Rate vs. Correlation (lambda_base = max)
+ggplot(df_max_lambda, aes(x = rho, y = type1_error_rate)) +
+  geom_line() + 
+  geom_point() +
   facet_wrap(~ n_subjects, scales = "fixed") +
-  labs(title = "Type I Error Rate in OLS Regression",
-       x = "Correlation Level", y = "Type I Error Rate",
-       color = "Lambda") +
+  labs(
+    title = "Type I Error Rate in OLS Regression (lambda_base = max)",
+    x = "Correlation Level",
+    y = "Type I Error Rate"
+  ) +
   theme_minimal()
 
-ggplot(filter(simulation_results_gee, rho==min(rho)), aes(x = lambda_base, y = type1_error_rate)) +
-  geom_line() + geom_point() +
+#--- Plot 2: Type I Error Rate vs. Lambda (rho = min)
+ggplot(df_min_rho, aes(x = lambda_base, y = type1_error_rate)) +
+  geom_line() + 
+  geom_point() +
   facet_wrap(~ n_subjects, scales = "fixed") +
-  labs(title = "Type I Error Rate in OLS Regression",
-       x = "Lambda", y = "Type I Error Rate",
-       color = "Correlation Level") +
+  labs(
+    title = "Type I Error Rate in OLS Regression (rho = min)",
+    x = "Lambda",
+    y = "Type I Error Rate"
+  ) +
   theme_minimal()
 
-# Plot Coverage Probability vs. Correlation
-ggplot(filter(simulation_results_gee, lambda_base==max(lambda_base)), aes(x = rho, y = coverage_prob)) +
-  geom_line() + geom_point() +
+#--- Plot 3: Coverage Probability vs. Correlation (lambda_base = max)
+ggplot(df_max_lambda, aes(x = rho, y = coverage_prob)) +
+  geom_line() + 
+  geom_point() +
   facet_wrap(~ n_subjects, scales = "fixed") +
-  labs(title = "Coverage Probability of Confidence Intervals",
-       x = "Correlation Level", y = "Coverage Probability") +
+  labs(
+    title = "Coverage Probability of Confidence Intervals (lambda_base = max)",
+    x = "Correlation Level",
+    y = "Coverage Probability"
+  ) +
   theme_minimal()
 
-ggplot(filter(simulation_results_gee, rho==min(rho)), aes(x = lambda_base, y = coverage_prob)) +
-  geom_line() + geom_point() +
+#--- Plot 4: Coverage Probability vs. Lambda (rho = min)
+ggplot(df_min_rho, aes(x = lambda_base, y = coverage_prob)) +
+  geom_line() + 
+  geom_point() +
   facet_wrap(~ n_subjects, scales = "fixed") +
-  labs(title = "Coverage Probability of Confidence Intervals",
-       x = "Lambda", y = "Coverage Probability") +
+  labs(
+    title = "Coverage Probability of Confidence Intervals (rho = min)",
+    x = "Lambda",
+    y = "Coverage Probability"
+  ) +
   theme_minimal()
 
+```
 
 
+
+```{r}
 #--------------------------------------------------------------------------#
 ##### running a GEE poisson regression #####
 
@@ -623,43 +658,63 @@ simulation_results_gee <- do.call(rbind, apply(test_conditions, 1, function(row)
                         beta1 = beta1_null,
                         n_sim = n_sim)  
 }))
+```
 
+```{r}
+# First, compute max(lambda_base) and min(rho) for the GEE simulation results
+max_lambda_gee <- max(simulation_results_gee$lambda_base)
+min_rho_gee <- min(simulation_results_gee$rho)
 
-# Print results
-print(simulation_results_gee)
+# Create subsets using a small tolerance
+df_max_lambda_gee <- simulation_results_gee %>% 
+  filter(abs(lambda_base - max_lambda_gee) < 1e-8)
+df_min_rho_gee <- simulation_results_gee %>% 
+  filter(abs(rho - min_rho_gee) < 1e-8)
 
-# Plot Type I Error Rate vs. Correlation
-ggplot(filter(simulation_results_ols, lambda_base == max(lambda_base)), aes(x = rho, y = type1_error_rate)) +
-  geom_line() + geom_point() +
+# Plot 1: Type I Error Rate vs. Correlation (for lambda_base = max)
+ggplot(df_max_lambda_gee, aes(x = rho, y = type1_error_rate)) +
+  geom_line() + 
+  geom_point() +
   facet_wrap(~ n_subjects, scales = "fixed") +
-  labs(title = "Type I Error Rate in GEE Regression",
-       x = "Correlation Level", y = "Type I Error Rate",
-       color = "Lambda") +
+  labs(title = "Type I Error Rate in GEE Regression (lambda_base = max)",
+       x = "Correlation Level (rho)", 
+       y = "Type I Error Rate") +
   theme_minimal()
 
-ggplot(filter(simulation_results_ols, rho==min(rho)), aes(x = lambda_base, y = type1_error_rate)) +
-  geom_line() + geom_point() +
+# Plot 2: Type I Error Rate vs. Lambda (for rho = min)
+ggplot(df_min_rho_gee, aes(x = lambda_base, y = type1_error_rate)) +
+  geom_line() + 
+  geom_point() +
   facet_wrap(~ n_subjects, scales = "fixed") +
-  labs(title = "Type I Error Rate in GEE Regression",
-       x = "Lambda", y = "Type I Error Rate",
-       color = "Correlation Level") +
+  labs(title = "Type I Error Rate in GEE Regression (rho = min)",
+       x = "Lambda Base", 
+       y = "Type I Error Rate") +
   theme_minimal()
 
-# Plot Coverage Probability vs. Correlation
-ggplot(filter(simulation_results_ols, lambda_base==max(lambda_base)), aes(x = rho, y = coverage_prob)) +
-  geom_line() + geom_point() +
+# Plot 3: Coverage Probability vs. Correlation (for lambda_base = max)
+ggplot(df_max_lambda_gee, aes(x = rho, y = coverage_prob)) +
+  geom_line() + 
+  geom_point() +
   facet_wrap(~ n_subjects, scales = "fixed") +
-  labs(title = "Coverage Probability of Confidence Intervals",
-       x = "Correlation Level", y = "Coverage Probability") +
+  labs(title = "Coverage Probability in GEE Regression (lambda_base = max)",
+       x = "Correlation Level (rho)", 
+       y = "Coverage Probability") +
   theme_minimal()
 
-ggplot(filter(simulation_results_ols, rho==min(rho)), aes(x = lambda_base, y = coverage_prob)) +
-  geom_line() + geom_point() +
+# Plot 4: Coverage Probability vs. Lambda (for rho = min)
+ggplot(df_min_rho_gee, aes(x = lambda_base, y = coverage_prob)) +
+  geom_line() + 
+  geom_point() +
   facet_wrap(~ n_subjects, scales = "fixed") +
-  labs(title = "Coverage Probability of Confidence Intervals",
-       x = "Lambda", y = "Coverage Probability") +
+  labs(title = "Coverage Probability in GEE Regression (rho = min)",
+       x = "Lambda Base", 
+       y = "Coverage Probability") +
   theme_minimal()
 
+
+```
+
+```{r}
 #--------------------------------------------------------------------------#
 ##### Model comparison #####
 
