@@ -8,6 +8,14 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Introduction
+
+Standard regression models assume that observations are independent and normally distributed. However, real-world data, especially in longitudinal studies, frequently violate these assumptions. Observations collected from the same subject over time tend to be correlated, and response distributions are often non-normal, exhibiting skewness or heavy tails. Failing to account for these characteristics can lead to biased parameter estimates, incorrect Type I error rates, and misleading confidence intervals.
+
+To investigate the impact of these assumption violations, we designed a simulation study that generates longitudinal Poisson data with an autoregressive (AR(1)) correlation structure. We then assessed the performance of different statistical models in analyzing this data. First, we examined Ordinary Least Squares (OLS) regression which assumes independent and normally distributed errors. Because OLS does not account for within-subject correlation, its estimates and standard errors may be unreliable when applied to correlated count data. To address these limitations, we evaluated an alternative approach: Generalized Estimating Equations (GEE). The GEE framework provides robust standard errors and explicitly models correlation within subjects using a working correlation structure, improving efficiency in parameter estimation.
+
+We assess bias, Type I error rates, and coverage probabilities of confidence intervals under varying levels of within-subject correlation. By highlighting the limitations of naive regression models and the advantages of GEE, our study provides insights into the appropriate statistical methods for handling correlated, non-normal data in longitudinal research.
+
 ## Project 1: Multivariate Non-Normal Distributions and Correlated Data
 
 ### Distributions and correlation
