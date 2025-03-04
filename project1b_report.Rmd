@@ -2,6 +2,9 @@
 title: "Project1(B) Report"
 date: "`r Sys.Date()`"
 output: pdf_document
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
 
 ```{r setup, include=FALSE}
@@ -10,19 +13,43 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Introduction
 
-Standard regression models assume that observations are independent and normally distributed. However, real-world data, especially in longitudinal studies, frequently violate these assumptions. Observations collected from the same subject over time tend to be correlated, and response distributions are often non-normal, exhibiting skewness or heavy tails. Failing to account for these characteristics can lead to biased parameter estimates, incorrect Type I error rates, and misleading confidence intervals.
+Standard regression models assume that observations are independent and
+normally distributed. However, real-world data, especially in
+longitudinal studies, frequently violate these assumptions. Observations
+collected from the same subject over time tend to be correlated, and
+response distributions are often non-normal, exhibiting skewness or
+heavy tails. Failing to account for these characteristics can lead to
+biased parameter estimates, incorrect Type I error rates, and misleading
+confidence intervals.
 
-To investigate the impact of these assumption violations, we designed a simulation study that generates longitudinal Poisson data with an autoregressive (AR(1)) correlation structure. We then assessed the performance of different statistical models in analyzing this data. First, we examined Ordinary Least Squares (OLS) regression which assumes independent and normally distributed errors. Because OLS does not account for within-subject correlation, its estimates and standard errors may be unreliable when applied to correlated count data. To address these limitations, we evaluated an alternative approach: Generalized Estimating Equations (GEE). The GEE framework provides robust standard errors and explicitly models correlation within subjects using a working correlation structure, improving efficiency in parameter estimation.
+To investigate the impact of these assumption violations, we designed a
+simulation study that generates longitudinal Poisson data with an
+autoregressive (AR(1)) correlation structure. We then assessed the
+performance of different statistical models in analyzing this data.
+First, we examined Ordinary Least Squares (OLS) regression which assumes
+independent and normally distributed errors. Because OLS does not
+account for within-subject correlation, its estimates and standard
+errors may be unreliable when applied to correlated count data. To
+address these limitations, we evaluated an alternative approach:
+Generalized Estimating Equations (GEE). The GEE framework provides
+robust standard errors and explicitly models correlation within subjects
+using a working correlation structure, improving efficiency in parameter
+estimation.
 
-We assess bias, Type I error rates, and coverage probabilities of confidence intervals under varying levels of within-subject correlation. By highlighting the limitations of naive regression models and the advantages of GEE, our study provides insights into the appropriate statistical methods for handling correlated, non-normal data in longitudinal research.
+We assess bias, Type I error rates, and coverage probabilities of
+confidence intervals under varying levels of within-subject correlation.
+By highlighting the limitations of naive regression models and the
+advantages of GEE, our study provides insights into the appropriate
+statistical methods for handling correlated, non-normal data in
+longitudinal research.
 
 ## Project 1: Multivariate Non-Normal Distributions and Correlated Data
 
 ### Distributions and correlation
 
-- We intend to generate longitudinal data.
+-   We intend to generate longitudinal data.
 
-- Target correlation structure is AR(1) or exchangeable correlation.
+-   Target correlation structure is AR(1) or exchangeable correlation.
 
 ### Data generation method
 
@@ -91,41 +118,50 @@ pairs(
 
 ```
 
-
 ### Simulation study 1
-Model Fitting:
-We applied OLS regression model, using the model:Count∼X
-even though OLS assumes continuous, normally distributed errors and independent observations. This deliberate misspecification allowed us to observe the impact of ignoring the count nature and correlation of the data.
+Ordinary Least Squares (OLS) Model:
+Ordinary Least Squares (OLS) regression is a classical approach for estimating the relationship between a continuous outcome variable and one or more predictors. The model assumes that errors (residuals) are independent and normally distributed with constant variance. Under these assumptions, OLS estimates are the Best Linear Unbiased Estimates (BLUE) of the parameters. However, when the outcome variable is count data (with inherent non-normality) and observations are correlated (e.g., repeated measures within subjects), these assumptions are violated. As a result, OLS may yield biased estimates, incorrect standard errors, and unreliable hypothesis tests.
 
-Simulation Settings:
-We ran the simulation for 500 replicates under each combination of:
-Sample Sizes: 100, 500, and 1000 subjects.
-Correlation Levels: p,ranging from 0 to 0.9.
-Base Mean: λ base =5.
+Model Fitting: 
+We applied OLS regression model, using the model:Count∼X
+even though OLS assumes continuous, normally distributed errors and
+independent observations. This deliberate misspecification allowed us to
+observe the impact of ignoring the count nature and correlation of the
+data.
+
+Simulation Settings: 
+We ran the simulation for 500 replicates under each
+combination of: Sample Sizes: 100, 500, and 1000 subjects. Correlation
+Levels: p,ranging from 0 to 0.9. Base Mean: λ base =5.
 
 For each replicate, we recorded:
+The estimated effect of X(beta1_hat) The bias (calculated as
+beta1_hat-beta1 Whether the 95% confidence interval for beta1 contained
+the true value. The p-value for the predictor X to determine if the null
+hypothesis is rejected.
 
-The estimated effect of X(beta1_hat)
-The bias (calculated as beta1_hat-beta1
-Whether the 95% confidence interval for beta1 contained the true value.
-The p-value for the predictor X to determine if the null hypothesis is rejected.
+Results: 
+Our simulation results showed that the naive OLS model produced
+inconsistent performance across different conditions:
 
+Bias: Although the overall bias in the estimated effect of X was small
+on average, there were certain correlation levels (especially in
+moderate to high ranges of ρ) where the bias increased noticeably.
+Larger sample sizes helped stabilize the estimates somewhat, but did not
+fully eliminate the spikes in bias observed at specific correlation
+levels.
 
-Results
-Our simulation results showed that the naive OLS model produced inconsistent performance across different conditions:
+Type I Error Rate: Contrary to the assumption of maintaining a nominal
+5% error rate, the Type I error rates often exceeded this threshold,
+sometimes substantially. The lack of a monotonic pattern suggests that
+ignoring within-subject correlation makes the hypothesis test results
+erratic, leading to inflated false-positive conclusions.
 
-Bias: 
-Although the overall bias in the estimated effect of X was small on average, there were certain correlation levels (especially in moderate to high ranges of ρ) where the bias increased noticeably.
-Larger sample sizes helped stabilize the estimates somewhat, but did not fully eliminate the spikes in bias observed at specific correlation levels.
-
-Type I Error Rate: 
-Contrary to the assumption of maintaining a nominal 5% error rate, the Type I error rates often exceeded this threshold, sometimes substantially.
-The lack of a monotonic pattern suggests that ignoring within-subject correlation makes the hypothesis test results erratic, leading to inflated false-positive conclusions.
-
-Coverage Probability: 
-Coverage in this setting is neither stable nor monotonic as the correlation changes. The 95% confidence intervals for β₁ frequently failed to capture the true value, resulting in coverage probabilities that were lower than the nominal 95%.Coverage probability ideally should be around 95%.
-
-
+Coverage Probability: Coverage in this setting is neither stable nor
+monotonic as the correlation changes. The 95% confidence intervals for
+β₁ frequently failed to capture the true value, resulting in coverage
+probabilities that were lower than the nominal 95%.Coverage probability
+ideally should be around 95%.
 
 ### Simulation study 2
 
@@ -370,8 +406,6 @@ ggplot(df_min_rho, aes(x = lambda_base, y = coverage_prob)) +
 
 ```
 
-
-
 ```{r}
 #--------------------------------------------------------------------------#
 ##### running a GEE poisson regression #####
@@ -528,4 +562,3 @@ ggplot(filter(comparison_results, lambda_base==max(lambda_base)), aes(x = rho, y
 
 
 ```
-
