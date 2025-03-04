@@ -113,11 +113,17 @@ The p-value for the predictor X to determine if the null hypothesis is rejected.
 
 Results
 Our simulation results showed that the naive OLS model produced inconsistent performance across different conditions:
-Bias: Although the overall bias in the estimated effect of X was generally small, there were certain levels of ρ where the bias increased noticeably. Larger sample sizes helped stabilize the bias somewhat, but did not fully resolve the inconsistency.
 
-Type I Error Rate: The rate at which the OLS model incorrectly rejected the null hypothesis did not follow a smooth, monotonic trend as ρ increased. Instead, the Type I error rate varied unpredictably, suggesting that the model’s inability to account for within-subject correlation leads to erratic hypothesis test results.
+Bias: 
+Although the overall bias in the estimated effect of X was small on average, there were certain correlation levels (especially in moderate to high ranges of ρ) where the bias increased noticeably.
+Larger sample sizes helped stabilize the estimates somewhat, but did not fully eliminate the spikes in bias observed at specific correlation levels.
 
-Coverage Probability: Coverage in this setting is neither stable nor monotonic as the correlation changes. This underscores how OLS, when used with correlated count data, can yield unpredictable coverage outcomes across different sample sizes.Coverage probability ideally should be around 95%.
+Type I Error Rate: 
+Contrary to the assumption of maintaining a nominal 5% error rate, the Type I error rates often exceeded this threshold, sometimes substantially.
+The lack of a monotonic pattern suggests that ignoring within-subject correlation makes the hypothesis test results erratic, leading to inflated false-positive conclusions.
+
+Coverage Probability: 
+Coverage in this setting is neither stable nor monotonic as the correlation changes. The 95% confidence intervals for β₁ frequently failed to capture the true value, resulting in coverage probabilities that were lower than the nominal 95%.Coverage probability ideally should be around 95%.
 
 
 
