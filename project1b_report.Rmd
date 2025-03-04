@@ -2,19 +2,54 @@
 title: "Project1(B) Report"
 date: "`r Sys.Date()`"
 output: pdf_document
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Introduction
+
+Standard regression models assume that observations are independent and
+normally distributed. However, real-world data, especially in
+longitudinal studies, frequently violate these assumptions. Observations
+collected from the same subject over time tend to be correlated, and
+response distributions are often non-normal, exhibiting skewness or
+heavy tails. Failing to account for these characteristics can lead to
+biased parameter estimates, incorrect Type I error rates, and misleading
+confidence intervals.
+
+To investigate the impact of these assumption violations, we designed a
+simulation study that generates longitudinal Poisson data with an
+autoregressive (AR(1)) correlation structure. We then assessed the
+performance of different statistical models in analyzing this data.
+First, we examined Ordinary Least Squares (OLS) regression which assumes
+independent and normally distributed errors. Because OLS does not
+account for within-subject correlation, its estimates and standard
+errors may be unreliable when applied to correlated count data. To
+address these limitations, we evaluated an alternative approach:
+Generalized Estimating Equations (GEE). The GEE framework provides
+robust standard errors and explicitly models correlation within subjects
+using a working correlation structure, improving efficiency in parameter
+estimation.
+
+We assess bias, Type I error rates, and coverage probabilities of
+confidence intervals under varying levels of within-subject correlation.
+By highlighting the limitations of naive regression models and the
+advantages of GEE, our study provides insights into the appropriate
+statistical methods for handling correlated, non-normal data in
+longitudinal research.
+
 ## Project 1: Multivariate Non-Normal Distributions and Correlated Data
 
 ### Distributions and correlation
 
-- We intend to generate longitudinal data.
+-   We intend to generate longitudinal data.
 
-- Target correlation structure is AR(1) or exchangeable correlation.
+-   Target correlation structure is AR(1) or exchangeable correlation.
 
 ### Data generation method
 
@@ -83,274 +118,51 @@ pairs(
 
 ```
 
-
 ### Simulation study 1
+Ordinary Least Squares (OLS) Model:
+Ordinary Least Squares (OLS) regression is a classical approach for estimating the relationship between a continuous outcome variable and one or more predictors. The model assumes that errors (residuals) are independent and normally distributed with constant variance. Under these assumptions, OLS estimates are the Best Linear Unbiased Estimates (BLUE) of the parameters. However, when the outcome variable is count data (with inherent non-normality) and observations are correlated (e.g., repeated measures within subjects), these assumptions are violated. As a result, OLS may yield biased estimates, incorrect standard errors, and unreliable hypothesis tests.
 
-```{r}
-library(tidyverse)
-library(ggplot2)
-# --- 1. Data Generation Function ---
-generate_correlated_data <- function(n = 200, t = 4, beta0 = -1.0, beta1 = 0.3, 
-                                     sigma = 1.0, distribution = "binomial", df = 3) {
-  dat <- data.frame(
-    id   = rep(1:n, each = t),
-    time = rep(1:t, times = n)
-  )
-  
-  # Generate a random intercept for each subject (induces within-subject correlation)
-  b_i <- rnorm(n, 0, sigma)
-  dat$b_i <- b_i[dat$id]
-  
-  # Linear predictor (eta)
-  eta <- beta0 + beta1 * dat$time + dat$b_i
-  
-  if (distribution == "binomial") {
-    dat$p_ij <- plogis(eta)
-    dat$Y    <- rbinom(n * t, size = 1, prob = dat$p_ij)
-  } else if (distribution == "t-dist") {
-    # Continuous data: add t-distributed errors with specified degrees of freedom
-    errors <- rt(n * t, df = df)
-    dat$Y <- eta + errors
-  } else {
-    stop("Unknown distribution. Choose 'binomial' or 't-dist'.")
-  }
-  
-  return(dat)
-}
+Model Fitting: 
+We applied OLS regression model, using the model:Count∼X
+even though OLS assumes continuous, normally distributed errors and
+independent observations. This deliberate misspecification allowed us to
+observe the impact of ignoring the count nature and correlation of the
+data.
 
-# --- 2. Naive Model Fitting Function ---
-fit_naive_model <- function(dat, distribution) {
-  if (distribution == "binomial") {
-    # For binary data -> Logistic regression
-    fit <- glm(Y ~ time, data = dat, family = binomial)
-    summ <- summary(fit)
-    
-    beta1_hat <- summ$coefficients["time", "Estimate"]
-    se1       <- summ$coefficients["time", "Std. Error"]
-    
-    ci_lower <- beta1_hat - 1.96 * se1
-    ci_upper <- beta1_hat + 1.96 * se1
-    
-    p_val <- summ$coefficients["time", "Pr(>|z|)"]
-    
-  } else if (distribution == "t-dist") {
-    # For continuous data -> Linear regression
-    fit <- lm(Y ~ time, data = dat)
-    summ <- summary(fit)
-    
-    beta1_hat <- summ$coefficients["time", "Estimate"]
-    se1       <- summ$coefficients["time", "Std. Error"]
-    
-    ci_lower <- beta1_hat - 1.96 * se1
-    ci_upper <- beta1_hat + 1.96 * se1
-    
-    p_val <- summ$coefficients["time", "Pr(>|t|)"]
-    
-  } else {
-    stop("Unknown distribution. Choose 'binomial' or 't-dist'.")
-  }
-  
-  return(list(
-    beta1_hat = beta1_hat,
-    se1       = se1,
-    ci_lower  = ci_lower,
-    ci_upper  = ci_upper,
-    p_val     = p_val
-  ))
-}
+Simulation Settings: 
+We ran the simulation for 500 replicates under each
+combination of: Sample Sizes: 100, 500, and 1000 subjects. Correlation
+Levels: p,ranging from 0 to 0.9. Base Mean: λ base =5.
 
-# --- 3. Single-Scenario Simulation Function ---
-run_simulation <- function(n_sim = 1000, n, t, beta0, beta1, sigma, distribution, df = 3) {
-  results <- data.frame(
-    beta1_est = numeric(n_sim),
-    se        = numeric(n_sim),
-    coverage  = logical(n_sim),
-    p_value   = numeric(n_sim)
-  )
-  
-  for (i in 1:n_sim) {
-    # 1) Generate data, passing df (used only for t-dist)
-    dat <- generate_correlated_data(n, t, beta0, beta1, sigma, distribution, df)
-    
-    # 2) Fit the naive model and extract metrics
-    fit <- fit_naive_model(dat, distribution)
-    
-    # 3) Record results
-    results$beta1_est[i] <- fit$beta1_hat
-    results$se[i]        <- fit$se1
-    results$coverage[i]  <- (fit$ci_lower <= beta1 && fit$ci_upper >= beta1)
-    results$p_value[i]   <- fit$p_val
-  }
-  
-  return(results)
-}
+For each replicate, we recorded:
+The estimated effect of X(beta1_hat) The bias (calculated as
+beta1_hat-beta1 Whether the 95% confidence interval for beta1 contained
+the true value. The p-value for the predictor X to determine if the null
+hypothesis is rejected.
 
-# --- 4. Construct Parameter Grid (including beta1 = 0 and beta1 = 0.3) ---
-param_grid <- expand.grid(
-  n = c(50, 200, 500),                # Sample sizes
-  sigma = c(0.5, 1.0, 2.0),             # Random intercept SD (controls correlation strength)
-  distribution = c("binomial", "t-dist"), # Binary (logistic) vs. heavy-tailed continuous data
-  beta1_val = c(0, 0.3),                # beta1 = 0 for Type I error, beta1 = 0.3 for Power
-  df = c(3, 5, 10)                     # Degrees of freedom for t-dist (ignored for binomial)
-)
+Results: 
+Our simulation results showed that the naive OLS model produced
+inconsistent performance across different conditions:
 
-beta0_true <- -1
-t_time     <- 4
-n_sim      <- 500
+Bias: Although the overall bias in the estimated effect of X was small
+on average, there were certain correlation levels (especially in
+moderate to high ranges of ρ) where the bias increased noticeably.
+Larger sample sizes helped stabilize the estimates somewhat, but did not
+fully eliminate the spikes in bias observed at specific correlation
+levels.
 
-all_results <- list()
+Type I Error Rate: Contrary to the assumption of maintaining a nominal
+5% error rate, the Type I error rates often exceeded this threshold,
+sometimes substantially. The lack of a monotonic pattern suggests that
+ignoring within-subject correlation makes the hypothesis test results
+erratic, leading to inflated false-positive conclusions.
 
-# --- 5. Loop over Parameter Grid and Collect Results ---
-for (i in 1:nrow(param_grid)) {
-  params <- param_grid[i, ]
-  
-  cat("Running simulation for:",
-      "n =", params$n, 
-      "sigma =", params$sigma, 
-      "distribution =", params$distribution,
-      "beta1 =", params$beta1_val,
-      "df =", params$df, "\n")
-  
-  sim_res <- run_simulation(
-    n_sim = n_sim, 
-    n     = params$n, 
-    t     = t_time, 
-    beta0 = beta0_true, 
-    beta1 = params$beta1_val, 
-    sigma = params$sigma, 
-    distribution = params$distribution,
-    df = params$df
-  )
-  
-  # Calculate bias, coverage, and significance rate (sig_rate)
-  bias <- mean(sim_res$beta1_est) - params$beta1_val
-  coverage <- mean(sim_res$coverage)
-  sig_rate <- mean(sim_res$p_value < 0.05)
-  
-  all_results[[i]] <- cbind(
-    params,
-    bias = bias,
-    coverage = coverage,
-    sig_rate = sig_rate
-  )
-}
+Coverage Probability: Coverage in this setting is neither stable nor
+monotonic as the correlation changes. The 95% confidence intervals for
+β₁ frequently failed to capture the true value, resulting in coverage
+probabilities that were lower than the nominal 95%.Coverage probability
+ideally should be around 95%.
 
-final_results <- bind_rows(all_results)
-
-# --- 6. Separate Result Tables for Type I Error and Power ---
-type1_error_results <- final_results %>% 
-  filter(beta1_val == 0) %>% 
-  select(n, sigma, distribution, df, bias, coverage, sig_rate) %>% 
-  rename(TypeI_error = sig_rate)
-
-power_results <- final_results %>% 
-  filter(beta1_val != 0) %>% 
-  select(n, sigma, distribution, df, bias, coverage, sig_rate) %>% 
-  rename(Power = sig_rate)
-
-cat("\nResults for Type I Error (beta1 = 0):\n")
-print(type1_error_results)
-
-cat("\nResults for Power (beta1 = 0.3):\n")
-print(power_results)
-
-
-
-
-
-```
-```{r}
-# Filter results for t-dist only (df is only meaningful for t-dist)
-t_dist_results <- final_results %>% filter(distribution == "t-dist")
-
-# Separate the results for Type I error (beta1_val = 0) and for Power (beta1_val = 0.3)
-t_dist_null <- t_dist_results %>% filter(beta1_val == 0)
-t_dist_power <- t_dist_results %>% filter(beta1_val == 0.3)
-
-# ----- Visualization for t-dist (Type I Error) -----
-# Plot Bias vs. df for Type I Error (β₁ = 0) across different sigma and n
-ggplot(t_dist_null, aes(x = factor(df), y = bias, color = factor(sigma))) +
-  geom_point(size = 3) +
-  geom_line(aes(group = sigma)) +
-  facet_wrap(~ n, scales = "free_y") +
-  labs(title = "Bias (Type I Error) for t-dist Data (β₁ = 0)",
-       x = "Degrees of Freedom (df)",
-       y = "Bias",
-       color = "Sigma")
-
-# Plot Coverage vs. df for Type I Error
-ggplot(t_dist_null, aes(x = factor(df), y = coverage, color = factor(sigma))) +
-  geom_point(size = 3) +
-  geom_line(aes(group = sigma)) +
-  facet_wrap(~ n) +
-  labs(title = "Coverage (Type I Error) for t-dist Data (β₁ = 0)",
-       x = "Degrees of Freedom (df)",
-       y = "Coverage",
-       color = "Sigma")
-
-# Plot sig_rate vs. df for Type I Error (this is the Type I error rate)
-ggplot(t_dist_null, aes(x = factor(df), y = sig_rate, color = factor(sigma))) +
-  geom_point(size = 3) +
-  geom_line(aes(group = sigma)) +
-  facet_wrap(~ n) +
-  labs(title = "Type I Error Rate for t-dist Data (β₁ = 0)",
-       x = "Degrees of Freedom (df)",
-       y = "Type I Error Rate",
-       color = "Sigma")
-
-# ----- Visualization for t-dist (Power) -----
-# Plot Bias vs. df for Power (β₁ = 0.3)
-ggplot(t_dist_power, aes(x = factor(df), y = bias, color = factor(sigma))) +
-  geom_point(size = 3) +
-  geom_line(aes(group = sigma)) +
-  facet_wrap(~ n, scales = "free_y") +
-  labs(title = "Bias (Power) for t-dist Data (β₁ = 0.3)",
-       x = "Degrees of Freedom (df)",
-       y = "Bias",
-       color = "Sigma")
-
-# Plot Coverage vs. df for Power
-ggplot(t_dist_power, aes(x = factor(df), y = coverage, color = factor(sigma))) +
-  geom_point(size = 3) +
-  geom_line(aes(group = sigma)) +
-  facet_wrap(~ n) +
-  labs(title = "Coverage (Power) for t-dist Data (β₁ = 0.3)",
-       x = "Degrees of Freedom (df)",
-       y = "Coverage",
-       color = "Sigma")
-
-# Plot sig_rate vs. df for Power (this is the Power)
-ggplot(t_dist_power, aes(x = factor(df), y = sig_rate, color = factor(sigma))) +
-  geom_point(size = 3) +
-  geom_line(aes(group = sigma)) +
-  facet_wrap(~ n) +
-  labs(title = "Power for t-dist Data (β₁ = 0.3)",
-       x = "Degrees of Freedom (df)",
-       y = "Power (sig_rate)",
-       color = "Sigma")
-
-
-
-
-
-```
-```{r}
-# For binomial: df is not used, so we can plot results by n and sigma.
-# Visualize bias for binomial data
-ggplot(binomial_results, aes(x = factor(sigma), y = bias, fill = factor(n))) +
-  geom_bar(stat = "identity", position = position_dodge()) +
-  labs(title = "Bias for Binomial Distribution", x = "Sigma", y = "Bias", fill = "Sample Size (n)")
-
-# Visualize coverage for binomial data
-ggplot(binomial_results, aes(x = factor(sigma), y = coverage, fill = factor(n))) +
-  geom_bar(stat = "identity", position = position_dodge()) +
-  labs(title = "Coverage for Binomial Distribution", x = "Sigma", y = "Coverage", fill = "Sample Size (n)")
-
-# Visualize sig_rate (Type I error or Power) for binomial data
-ggplot(binomial_results, aes(x = factor(sigma), y = sig_rate, fill = factor(n))) +
-  geom_bar(stat = "identity", position = position_dodge()) +
-  labs(title = "Sig_rate for Binomial Distribution", x = "Sigma", y = "Sig_rate", fill = "Sample Size (n)")
-```
 ### Simulation study 2
 
 ```{r}
@@ -594,8 +406,6 @@ ggplot(df_min_rho, aes(x = lambda_base, y = coverage_prob)) +
 
 ```
 
-
-
 ```{r}
 #--------------------------------------------------------------------------#
 ##### running a GEE poisson regression #####
@@ -752,4 +562,3 @@ ggplot(filter(comparison_results, lambda_base==max(lambda_base)), aes(x = rho, y
 
 
 ```
-
