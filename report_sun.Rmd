@@ -1,0 +1,61 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-03-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Simulation Study 2
+
+In the simulation study 2, we used a GEE model to account for data distribution and correlation structure. We assumed that the dependent variable \( Y_{it} \) follows a Poisson distribution:
+
+\[
+Y_{it} \sim \text{Poisson}(\lambda_{it})
+\]
+
+where \( \lambda_{it} \) is the expected count for subject \( i \) at time \( t \). We model the mean using a **log link function**:
+
+\[
+\log(\lambda_{it}) = \beta_0 + \beta_1 X_{it} + Z_{it}
+\]
+
+- \( \beta_0 \) is the **intercept**,
+- \( \beta_1 \) represents the **effect of the predictor** \( X_{it} \),
+- \( Z_{it} \) accounts for **subject-specific random effects**.
+
+The within-subject correlation structure is assumed to follow an **AR(1) process**, meaning that observations closer in time are more correlated:
+
+\[
+\text{Cor}(Y_{it}, Y_{is}) = \rho^{|t - s|}
+\]
+
+where \( \rho \) represents the **correlation between measurements** taken at different time points within the same subject.
+
+GEE estimates parameters by solving the quasi-likelihood **estimating equation**:
+
+\[
+\sum_{i=1}^{N} \mathbf{D}_i^T \mathbf{V}_i^{-1} \mathbf{U}_i = 0
+\]
+
+where \( \mathbf{V}_i \) models within-subject correlation.
+
+We used the same set of simulation parameters as the simulation study 1.
+
+
+### Result
+
+With the sample size of 100, GEE resulted in unstable regression coefficients. As the sample size increases to 500 and 1000, the coefficients were much more stable and close to zero. There was no clear trend by correlation levels, suggesting that GEE performs consistently across varying degrees of correlation in our simulation settings.
+
+Type 1 error rate and its corresponding coverage probability of 95% confidence intervals were unstable at the sample size of 100. For the sample size of 500 and 1000, the type 1 error rate and the coverage probability were more stable and stayed near 0.05 and 0.95, respectively.
+
+## Model Comparisons
+ 
+We found that in our simulated data, GEE performs better than OLS. Bias is closer to zero and more stable across varying levels of correlation in GEE, compared to OLS. With sufficient sample size (n=500 or 1000), we found that GEE result in lower type 1 error rate and thus, higher coverage probability of 95% confidence intervals. 
+
+
+
+
