@@ -26,18 +26,25 @@ estimating the relationship between a continuous outcome variable and
 one or more predictors. The model assumes that errors (residuals) are
 independent and normally distributed with constant variance. Under these
 assumptions, OLS estimates are the Best Linear Unbiased Estimates (BLUE)
-of the parameters. However, when the outcome variable is count data
-(with inherent non-normality) and observations are correlated (e.g.,
-repeated measures within subjects), these assumptions are violated. As a
-result, OLS may yield biased estimates, incorrect standard errors, and
-unreliable hypothesis tests.
+of the parameters.
 
 Model Fitting:
 
-We applied OLS regression model, using the model:Count∼X even though OLS
-assumes continuous, normally distributed errors and independent
-observations. This deliberate misspecification allowed us to observe the
-impact of ignoring the count nature and correlation of the data.
+In the first simulation study, we deliberately fit a naive Ordinary
+Least Squares (OLS) model to count data that were actually generated
+from a Poisson process with an AR(1) correlation structure.
+Specifically, we assumed: $$
+Y_{ij} = \beta_0 + \beta_1 X_{ij} + \varepsilon_{ij}, \quad \varepsilon_{ij} \sim N(0, \sigma^2)
+$$ even though the true data-generating mechanism was a Poisson
+distribution with correlation among repeated measures. By ignoring both
+the count nature and within-subject correlation of $Y{ij}$we aimed to
+investigate how model misspecification impacts:
+
+-   Bias in estimating $β{1}$.
+
+-   Type I error rate when testing$H_0: \beta_1 = 0$
+
+-   Coverage probability of 95% confidence intervals for $β{1}$.
 
 Simulation Settings:
 
