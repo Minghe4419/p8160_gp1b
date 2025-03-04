@@ -19,7 +19,49 @@ knitr::opts_chunk$set(eval = TRUE, echo = TRUE, fig.width = 10, fig.height = 5)
 
 
 ## Simulation Study 1
+Ordinary Least Squares (OLS) Model:
+Ordinary Least Squares (OLS) regression is a classical approach for estimating the relationship between a continuous outcome variable and one or more predictors. The model assumes that errors (residuals) are independent and normally distributed with constant variance. Under these assumptions, OLS estimates are the Best Linear Unbiased Estimates (BLUE) of the parameters. However, when the outcome variable is count data (with inherent non-normality) and observations are correlated (e.g., repeated measures within subjects), these assumptions are violated. As a result, OLS may yield biased estimates, incorrect standard errors, and unreliable hypothesis tests.
 
+Model Fitting: 
+We applied OLS regression model, using the model:Count∼X
+even though OLS assumes continuous, normally distributed errors and
+independent observations. This deliberate misspecification allowed us to
+observe the impact of ignoring the count nature and correlation of the
+data.
+
+Simulation Settings: 
+We ran the simulation for 500 replicates under each
+combination of: Sample Sizes: 100, 500, and 1000 subjects. Correlation
+Levels: p,ranging from 0 to 0.9. Base Mean: λ base =5.
+
+For each replicate, we recorded:
+The estimated effect of X(beta1_hat) The bias (calculated as
+beta1_hat-beta1 Whether the 95% confidence interval for beta1 contained
+the true value. The p-value for the predictor X to determine if the null
+hypothesis is rejected.
+
+Results: 
+Our simulation results showed that the naive OLS model produced
+inconsistent performance across different conditions:
+
+Bias: Although the overall bias in the estimated effect of X was small
+on average, there were certain correlation levels (especially in
+moderate to high ranges of ρ) where the bias increased noticeably.
+Larger sample sizes helped stabilize the estimates somewhat, but did not
+fully eliminate the spikes in bias observed at specific correlation
+levels.
+
+Type I Error Rate: Contrary to the assumption of maintaining a nominal
+5% error rate, the Type I error rates often exceeded this threshold,
+sometimes substantially. The lack of a monotonic pattern suggests that
+ignoring within-subject correlation makes the hypothesis test results
+erratic, leading to inflated false-positive conclusions.
+
+Coverage Probability: Coverage in this setting is neither stable nor
+monotonic as the correlation changes. The 95% confidence intervals for
+β₁ frequently failed to capture the true value, resulting in coverage
+probabilities that were lower than the nominal 95%.Coverage probability
+ideally should be around 95%.
 
 
 ## Simulation Study 2
