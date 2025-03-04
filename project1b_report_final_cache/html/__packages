@@ -1,0 +1,16 @@
+tidyverse
+ggplot2
+tibble
+tidyr
+readr
+purrr
+dplyr
+stringr
+forcats
+lubridate
+geepack
+MASS
+Matrix
+reshape2
+ggcorrplot
+copula
