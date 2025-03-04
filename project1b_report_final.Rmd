@@ -52,13 +52,6 @@ We ran the simulation for 500 replicates under each combination of:
 Sample Sizes: 100, 500, and 1000 subjects. Correlation Levels: p,ranging
 from 0 to 0.9. Base Mean: λ base =5.
 
-For each replicate, we recorded:
-
-The estimated effect of X(beta1_hat) The bias (calculated as
-beta1_hat-beta1 Whether the 95% confidence interval for beta1 contained
-the true value. The p-value for the predictor X to determine if the null
-hypothesis is rejected.
-
 Results:
 
 Our simulation results showed that the naive OLS model produced
